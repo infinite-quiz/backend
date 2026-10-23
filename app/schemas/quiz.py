@@ -49,6 +49,7 @@ class StartQuizRequest(BaseModel):
     count: int = Field(default=5, ge=1, le=20)
     difficulty: Difficulty = "medium"
     player_name: str | None = Field(default=None, max_length=100)
+    user_id: str | None = Field(default=None, max_length=36)
     language: str = "ru"
 
 
@@ -67,6 +68,7 @@ class StartQuizResponse(BaseModel):
     lives_left: int
     score: int
     status: SessionStatus
+    user_id: str | None = None
     questions: list[QuestionPublic]
 
 
@@ -96,6 +98,7 @@ class QuizSessionResponse(BaseModel):
     score: int
     status: SessionStatus
     player_name: str | None
+    user_id: str | None = None
     created_at: datetime
     finished_at: datetime | None
     questions: list[QuestionPublic]

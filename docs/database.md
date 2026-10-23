@@ -3,24 +3,34 @@
 ## ER-диаграмма
 
 ```text
+┌─────────────────────┐
+│        users        │
+├─────────────────────┤
+│ id (PK, uuid)       │
+│ username (unique)   │
+│ display_name        │
+│ created_at          │
+└──────────┬──────────┘
+           │ 1:N
+           ▼
 ┌─────────────────────┐       1:N       ┌─────────────────────┐
 │    quiz_sessions    │────────────────▶│      questions      │
 ├─────────────────────┤                 ├─────────────────────┤
 │ id (PK, uuid)       │                 │ id (PK, uuid)       │
-│ topic               │                 │ session_id (FK)     │
-│ difficulty          │                 │ order_index         │
-│ requested_count     │                 │ text                │
-│ lives_total         │                 │ options (JSON)      │
-│ lives_left          │                 │ correct_index       │
-│ score               │                 │ explanation         │
-│ status              │                 └──────────┬──────────┘
-│ player_name         │                            │
-│ created_at          │                            │ 1:N
-│ finished_at         │                            ▼
-└──────────┬──────────┘                 ┌─────────────────────┐
-           │ 1:N                        │       answers       │
-           └───────────────────────────▶├─────────────────────┤
-                                        │ id (PK, uuid)       │
+│ user_id (FK, null)  │                 │ session_id (FK)     │
+│ topic               │                 │ order_index         │
+│ difficulty          │                 │ text                │
+│ requested_count     │                 │ options (JSON)      │
+│ lives_total         │                 │ correct_index       │
+│ lives_left          │                 │ explanation         │
+│ score               │                 └──────────┬──────────┘
+│ status              │                            │
+│ player_name         │                            │ 1:N
+│ created_at          │                            ▼
+│ finished_at         │                 ┌─────────────────────┐
+└──────────┬──────────┘                 │       answers       │
+           │ 1:N                        ├─────────────────────┤
+           └───────────────────────────▶│ id (PK, uuid)       │
                                         │ session_id (FK)     │
                                         │ question_id (FK)    │
                                         │ selected_index      │
