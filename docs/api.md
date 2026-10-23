@@ -70,6 +70,8 @@ Interactive docs: `http://localhost:8000/docs`
 
 Создаёт сессию, генерирует вопросы, возвращает их **без** `correct_index`.
 
+Игрок: если передан `user_id` — сессия привязывается к нему (404, если нет). Если `user_id` пустой, а `player_name` задан — находится или создаётся `User` с `username = player_name`. Без имени сессия анонимная (`user_id = null`).
+
 **Request**
 ```json
 {
@@ -77,6 +79,7 @@ Interactive docs: `http://localhost:8000/docs`
   "count": 5,
   "difficulty": "easy",
   "player_name": "Alex",
+  "user_id": null,
   "language": "ru"
 }
 ```
@@ -91,6 +94,7 @@ Interactive docs: `http://localhost:8000/docs`
   "lives_left": 3,
   "score": 0,
   "status": "active",
+  "user_id": "uuid",
   "questions": [
     {
       "id": "uuid",

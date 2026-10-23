@@ -4,12 +4,21 @@
 
 ```mermaid
 erDiagram
+  users ||--o{ quiz_sessions : owns
   quiz_sessions ||--o{ questions : contains
   quiz_sessions ||--o{ answers : has
   questions ||--o{ answers : receives
 
+  users {
+    string id PK
+    string username UK
+    string display_name
+    datetime created_at
+  }
+
   quiz_sessions {
     string id PK
+    string user_id FK
     string topic
     enum difficulty
     int requested_count

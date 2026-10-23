@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
 from app.db.base import Base
+from app.db.models.user import User
 
 
 class Difficulty(str, enum.Enum):
@@ -47,11 +48,15 @@ class QuizSession(Base):
         default=SessionStatus.active,
     )
     player_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    user: Mapped[User | None] = relationship(back_populates="sessions")
     questions: Mapped[list[Question]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",

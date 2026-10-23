@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import get_settings
 from app.db.models.quiz import Answer, Difficulty, Question, QuizSession, SessionStatus
+from app.db.models.user import User
 from app.schemas.quiz import (
     AnswerRequest,
     AnswerResponse,
@@ -33,8 +34,29 @@ def _public_questions(session: QuizSession) -> list[QuestionPublic]:
     ]
 
 
+def _resolve_user(db: Session, payload: StartQuizRequest) -> User | None:
+    """Привязать сессию к игроку: по user_id или создать по player_name."""
+    if payload.user_id:
+        user = db.get(User, payload.user_id)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return user
+
+    name = (payload.player_name or "").strip()
+    if not name:
+        return None
+
+    user = db.query(User).filter(User.username == name).one_or_none()
+    if user is None:
+        user = User(username=name, display_name=name)
+        db.add(user)
+        db.flush()
+    return user
+
+
 async def start_quiz(db: Session, payload: StartQuizRequest) -> StartQuizResponse:
     settings = get_settings()
+    user = _resolve_user(db, payload)
     generated = await generate_questions(
         GenerateQuestionsRequest(
             topic=payload.topic,
@@ -53,7 +75,8 @@ async def start_quiz(db: Session, payload: StartQuizRequest) -> StartQuizRespons
         lives_left=settings.default_lives,
         score=0,
         status=SessionStatus.active,
-        player_name=payload.player_name,
+        player_name=user.display_name if user else payload.player_name,
+        user_id=user.id if user else None,
     )
     db.add(session)
     db.flush()
@@ -87,6 +110,7 @@ async def start_quiz(db: Session, payload: StartQuizRequest) -> StartQuizRespons
         lives_left=session.lives_left,
         score=session.score,
         status=session.status.value,
+        user_id=session.user_id,
         questions=_public_questions(session),
     )
 
@@ -111,6 +135,7 @@ def get_session(db: Session, session_id: str) -> QuizSessionResponse:
         score=session.score,
         status=session.status.value,
         player_name=session.player_name,
+        user_id=session.user_id,
         created_at=session.created_at,
         finished_at=session.finished_at,
         questions=_public_questions(session),
