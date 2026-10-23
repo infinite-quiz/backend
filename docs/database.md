@@ -2,47 +2,71 @@
 
 ## ER-диаграмма
 
-```text
-┌─────────────────────┐
-│        users        │
-├─────────────────────┤
-│ id (PK, uuid)       │
-│ username (unique)   │
-│ display_name        │
-│ created_at          │
-└──────────┬──────────┘
-           │ 1:N
-           ▼
-┌─────────────────────┐       1:N       ┌─────────────────────┐
-│    quiz_sessions    │────────────────▶│      questions      │
-├─────────────────────┤                 ├─────────────────────┤
-│ id (PK, uuid)       │                 │ id (PK, uuid)       │
-│ user_id (FK, null)  │                 │ session_id (FK)     │
-│ topic               │                 │ order_index         │
-│ difficulty          │                 │ text                │
-│ requested_count     │                 │ options (JSON)      │
-│ lives_total         │                 │ correct_index       │
-│ lives_left          │                 │ explanation         │
-│ score               │                 └──────────┬──────────┘
-│ status              │                            │
-│ player_name         │                            │ 1:N
-│ created_at          │                            ▼
-│ finished_at         │                 ┌─────────────────────┐
-└──────────┬──────────┘                 │       answers       │
-           │ 1:N                        ├─────────────────────┤
-           └───────────────────────────▶│ id (PK, uuid)       │
-                                        │ session_id (FK)     │
-                                        │ question_id (FK)    │
-                                        │ selected_index      │
-                                        │ is_correct          │
-                                        │ answered_at         │
-                                        └─────────────────────┘
+```mermaid
+erDiagram
+  users ||--o{ quiz_sessions : owns
+  quiz_sessions ||--o{ questions : contains
+  quiz_sessions ||--o{ answers : has
+  questions ||--o{ answers : receives
+
+  users {
+    string id PK
+    string username UK
+    string display_name
+    datetime created_at
+  }
+
+  quiz_sessions {
+    string id PK
+    string user_id FK
+    string topic
+    enum difficulty
+    int requested_count
+    int lives_total
+    int lives_left
+    int score
+    enum status
+    string player_name
+    datetime created_at
+    datetime finished_at
+  }
+
+  questions {
+    string id PK
+    string session_id FK
+    int order_index
+    text text
+    json options
+    int correct_index
+    text explanation
+  }
+
+  answers {
+    string id PK
+    string session_id FK
+    string question_id FK
+    int selected_index
+    bool is_correct
+    datetime answered_at
+  }
 ```
 
 ## Enums
 
-- `difficulty`: `easy` | `medium` | `hard`
-- `session_status`: `active` | `finished` | `abandoned`
+```mermaid
+flowchart LR
+  subgraph difficulty
+    E[easy]
+    M[medium]
+    H[hard]
+  end
+
+  subgraph session_status
+    A[active]
+    F[finished]
+    X[abandoned]
+  end
+```
 
 ## Миграции
 
