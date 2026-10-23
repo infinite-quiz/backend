@@ -1,62 +1,102 @@
 # Архитектура Infinite Quiz
 
-## Обзор
+Монолитный backend (FastAPI) + отдельный frontend-репозиторий + ML-сервис генерации вопросов.
 
-Монолитный backend (FastAPI) + отдельный frontend-репозиторий + опциональный ML-сервис генерации вопросов.
+## Обзор системы
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                         GitHub org                              │
-│                      infinite-quiz                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │   frontend   │  │   backend    │  │         ml           │  │
-│  │  (UI / SPA)  │  │  (monolith)  │  │ (prompts / generate) │  │
-│  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │
-└─────────┼─────────────────┼─────────────────────┼──────────────┘
-          │ HTTP/JSON       │                     │
-          │                 │  GENERATOR_MODE=http│
-          ▼                 ▼                     ▼
-   Browser / PWA     ┌──────────────┐      POST /generate
-                     │  FastAPI API │◄─────────────┘
-                     └──────┬───────┘
-                            │
-              ┌─────────────┼─────────────┐
-              ▼             ▼             ▼
-         routes/quiz   services/     SQLAlchemy
-         /generate     quiz_service  models
-         /start        generator     (sessions,
-         /answer                     questions,
-                                     answers)
-                            │
-                            ▼
-                      SQLite / Postgres
+```mermaid
+flowchart TB
+  subgraph Org["GitHub org: infinite-quiz"]
+    FE["frontend<br/>Quizly · React 19 · FSD"]
+    BE["backend<br/>FastAPI monolith"]
+    ML["ml<br/>prompts + LLM"]
+  end
+
+  Browser["Браузер / PWA"]
+  DB[(SQLite / Postgres)]
+
+  Browser -->|HTTP JSON<br/>/api/quiz/*| BE
+  FE -.->|собирается в| Browser
+  BE -->|GENERATOR_MODE=http<br/>POST /generate| ML
+  BE --> DB
+```
+
+## Внутренности backend
+
+```mermaid
+flowchart LR
+  subgraph Backend["backend :8000"]
+    R["routes/quiz<br/>generate · start · answer"]
+    S["services<br/>quiz_service · generator"]
+    M["models<br/>sessions · questions · answers"]
+  end
+
+  R --> S --> M
+  M --> DB[(БД)]
+  S -->|stub или http| ML["ml :8001"]
 ```
 
 ## Поток игры
 
-```text
-1. Клиент → POST /api/quiz/start { topic, count, difficulty }
-2. Backend → generator (stub | ML HTTP) → список вопросов
-3. Backend сохраняет QuizSession + Questions, отдаёт вопросы без correct_index клиенту
-4. Клиент → POST /api/quiz/{id}/answer { question_id, selected_index }
-5. Backend проверяет ответ, меняет lives/score, при lives=0 → finished
-6. Клиент → GET /api/quiz/{id} — текущее состояние сессии
+```mermaid
+sequenceDiagram
+  actor P as Игрок
+  participant C as Frontend
+  participant B as Backend
+  participant G as Generator stub/ML
+  participant D as БД
+
+  P->>C: тема, count, difficulty
+  C->>B: POST /api/quiz/start
+  B->>G: сгенерировать вопросы
+  G-->>B: questions[]
+  B->>D: QuizSession + Questions
+  B-->>C: вопросы без correct_index
+  C-->>P: показать вопрос
+
+  P->>C: выбрать вариант
+  C->>B: POST /api/quiz/{id}/answer
+  B->>D: Answer, lives, score
+  alt lives = 0 или вопросы кончились
+    B-->>C: status = finished
+  else ещё играет
+    B-->>C: is_correct, lives_left
+  end
 ```
 
-## Модули backend (монолит)
+## Модули backend и ответственность
 
-| Путь | Ответственность | Кто |
-|------|-----------------|-----|
-| `app/api/routes/` | HTTP-эндпоинты | Backend #2 |
-| `app/services/quiz_service.py` | Жизни, сессии, ответы | Backend #1 |
-| `app/services/generator.py` | Stub / вызов ML | Backend #1 + ML |
-| `app/db/models/` | Схема БД | Backend #1 |
-| `alembic/` | Миграции | Backend #2 |
-| `docs/` | Контракт API, архитектура | Тимлид |
+```mermaid
+flowchart TB
+  Routes["app/api/routes/<br/>HTTP-эндпоинты · Backend #2"]
+  QuizSvc["app/services/quiz_service.py<br/>Жизни, сессии, ответы · Backend #1"]
+  GenSvc["app/services/generator.py<br/>Stub / вызов ML · Backend #1 + ML"]
+  Models["app/db/models/<br/>Схема БД · Backend #1"]
+  Alembic["alembic/<br/>Миграции · Backend #2"]
+  Docs["docs/<br/>Контракт API, архитектура · Тимлид"]
+
+  Routes --> QuizSvc
+  Routes --> GenSvc
+  QuizSvc --> GenSvc
+  QuizSvc --> Models
+  Models --> Alembic
+  Docs -.-> Routes
+```
 
 ## Граница с ML
 
-- Сейчас: `GENERATOR_MODE=stub` — заглушка в backend.
-- Потом: `GENERATOR_MODE=http` + `GENERATOR_URL` → репозиторий `ml` отдаёт тот же JSON-контракт, что и `POST /api/quiz/generate`.
+```mermaid
+flowchart LR
+  BE["backend generator.py"]
+  Stub["GENERATOR_MODE=stub<br/>локальный банк вопросов"]
+  HTTP["GENERATOR_MODE=http<br/>GENERATOR_URL"]
+  ML["ml POST /generate<br/>тот же JSON-контракт"]
 
-Контракт генерации общий — см. `docs/api.md`.
+  BE --> Stub
+  BE --> HTTP --> ML
+```
+
+- Сейчас: `GENERATOR_MODE=stub`.
+- Цель: `GENERATOR_MODE=http` + сервис из репозитория `ml`.
+
+Контракт генерации — см. [api.md](api.md).
