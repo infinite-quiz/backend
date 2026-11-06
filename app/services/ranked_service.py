@@ -265,10 +265,16 @@ async def handle_ws_event(match_id: str, user_id: str, event: dict) -> None:
             if not isinstance(topics, list):
                 await ws_manager.send_user(match_id, user_id, {"type": "error", "detail": "topics must be list"})
                 return
-            if match.status not in {MatchStatus.banning, MatchStatus.lobby}:
+            if match.status in {
+                MatchStatus.in_progress,
+                MatchStatus.finished,
+                MatchStatus.cancelled,
+            }:
                 await ws_manager.send_user(match_id, user_id, {"type": "error", "detail": "Ban phase closed"})
                 return
-            match.status = MatchStatus.banning
+            # allow bans until match actually starts (lobby/banning/ready_check)
+            if match.status != MatchStatus.ready_check:
+                match.status = MatchStatus.banning
             player.banned_topics = [str(t) for t in topics][:3]
             # merge bans
             merged: list[str] = []
