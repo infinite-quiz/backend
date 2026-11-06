@@ -1,88 +1,80 @@
 # Infinite Quiz — Backend
 
-Монолитный API для бесконечного квиза с генерацией вопросов (stub → ML).
+Монолитный API: **solo (REST)** + **ranked (REST лобби + WebSocket)**.  
+Генерация вопросов: stub → ML.
 
 Org: [infinite-quiz](https://github.com/infinite-quiz)  
-Стек: **FastAPI · SQLAlchemy · Alembic · SQLite/Postgres**
+Стек: **FastAPI · SQLAlchemy · Alembic · WebSocket · SQLite/Postgres**
 
-## Архитектура системы
+## Архитектура
 
 ```mermaid
 flowchart LR
-  subgraph Org["GitHub: infinite-quiz"]
-    FE["frontend<br/>Quizly / React FSD"]
-    BE["backend<br/>FastAPI monolith"]
-    ML["ml<br/>LLM generator"]
-  end
-
-  Browser["Браузер / PWA"] -->|HTTP /api/quiz/*| BE
-  FE -.->|код UI| Browser
-  BE -->|POST /generate<br/>GENERATOR_MODE=http| ML
-  BE --> DB[(SQLite / Postgres)]
+  FE["frontend"] -->|Solo REST| BE["backend"]
+  FE -->|Ranked WS| BE
+  BE -->|generate| ML["ml"]
+  BE --> DB[(БД)]
 ```
 
-## Поток игры
+| Режим | Что использует |
+|--------|----------------|
+| Solo | `/api/quiz/start`, `/answer` — жизни, пачка вопросов |
+| Ranked | `/api/ranked/matches` + `/ws/ranked/{id}` — 1v1, таймер, бан тем |
+
+## Solo
 
 ```mermaid
 sequenceDiagram
-  actor Player as Игрок
   participant FE as Frontend
   participant BE as Backend
-  participant Gen as Stub / ML
-  participant DB as БД
-
-  Player->>FE: тема, count, сложность
   FE->>BE: POST /api/quiz/start
-  BE->>Gen: generate questions
-  Gen-->>BE: questions JSON
-  BE->>DB: session + questions
-  BE-->>FE: session_id, вопросы без correct_index
-  FE-->>Player: экран вопроса
-
-  Player->>FE: ответ
+  BE-->>FE: session + вопросы
   FE->>BE: POST /api/quiz/{id}/answer
-  BE->>DB: answer, lives, score
-  BE-->>FE: is_correct, lives_left, status
-  FE-->>Player: результат / game over
+  BE-->>FE: lives / score / status
 ```
 
-## Модули backend
+## Ranked
+
+```mermaid
+sequenceDiagram
+  participant FE as Frontend
+  participant REST as REST
+  participant WS as WebSocket
+  FE->>REST: create / join match
+  REST-->>FE: match_id, ws_url
+  FE->>WS: ban_topics, ready, answer
+  WS-->>FE: question, round_result, match_finished
+```
+
+Вопросы для ranked генерируются пачкой на сервере, клиенту уходит **только текущий**.
+
+## Модули
 
 ```mermaid
 flowchart TB
-  subgraph API["app/api/routes"]
-    H["/health"]
-    G["/quiz/generate"]
-    S["/quiz/start"]
-    A["/quiz/{id}/answer"]
-    Q["/quiz/{id}"]
+  subgraph HTTP
+    Q["/api/quiz/*"]
+    R["/api/ranked/*"]
   end
-
-  subgraph Services["app/services"]
-    QS["quiz_service<br/>сессии, жизни, ответы"]
-    GEN["generator<br/>stub | http→ML"]
+  subgraph WS
+    W["/ws/ranked/{match_id}"]
   end
-
-  subgraph Data["app/db"]
-    M["models<br/>sessions / questions / answers"]
-    AL["alembic migrations"]
+  subgraph Services
+    QS["quiz_service"]
+    RS["ranked_service"]
+    GEN["generator"]
   end
-
-  G --> GEN
-  S --> QS
-  A --> QS
   Q --> QS
+  R --> RS
+  W --> RS
   QS --> GEN
-  QS --> M
-  M --> AL
+  RS --> GEN
 ```
 
 ## Быстрый старт
 
 ```bash
-cd backendquiz   # или клон репозитория
 python -m venv .venv
-# Windows:
 .venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
@@ -91,53 +83,52 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
-- Docs: http://localhost:8000/docs  
+- Swagger: http://localhost:8000/docs  
 - Health: http://localhost:8000/api/health  
-- Generate stub: `POST http://localhost:8000/api/quiz/generate`
+- Ranked smoke (2 WS-клиента):
 
 ```bash
-curl -X POST http://localhost:8000/api/quiz/generate ^
-  -H "Content-Type: application/json" ^
-  -d "{\"topic\":\"Космос\",\"count\":3,\"difficulty\":\"easy\"}"
+py -3 scripts/ranked_ws_smoke.py
 ```
 
-## Структура репозитория
+## Структура
 
 ```text
 app/
-  api/routes/     # HTTP
-  db/models/      # ORM
-  schemas/        # Pydantic-контракты
-  services/       # game + generator
+  api/routes/     # quiz + ranked REST
+  api/ws/         # ranked WebSocket
+  db/models/      # solo + ranked
+  services/       # quiz_service, ranked_service, generator, ws_manager
 alembic/          # миграции
-docs/             # архитектура, API, БД, ветки
+docs/             # архитектура и контракты
+scripts/          # smoke-тесты
 ```
 
 ## Документация
 
-- [Обзор системы (для презентации)](docs/system-overview.md)
+- [Обзор (презентация)](docs/system-overview.md)
 - [Архитектура](docs/architecture.md)
-- [API contract (solo)](docs/api.md)
-- [Ranked REST + WebSocket](docs/ws.md)
+- [API solo](docs/api.md)
+- [Ranked REST + WS](docs/ws.md)
 - [Схема БД](docs/database.md)
 - [Ветки](docs/branches.md)
 
 ## Конфиг
 
-Скопируй `.env.example` → `.env`.
-
 | Переменная | Описание |
 |------------|----------|
 | `DATABASE_URL` | SQLite или Postgres |
 | `CORS_ORIGINS` | origins фронта |
-| `GENERATOR_MODE` | `stub` или `http` |
-| `GENERATOR_URL` | URL ML-сервиса при `http` |
+| `GENERATOR_MODE` | `stub` \| `http` |
+| `GENERATOR_URL` | URL ML при `http` |
+| `PUBLIC_WS_BASE_URL` | база для `ws_url` в ответе ranked |
+| `RANKED_ROUND_SECONDS` | таймер раунда по умолчанию |
 
-## Роли в этом репо
+## Роли
 
 | Роль | Зона |
 |------|------|
-| Backend #1 | `services/quiz_service`, модели, жизни |
-| Backend #2 | миграции, конфиг, CORS, инфраструктура |
-| ML | контракт generate; позже `GENERATOR_MODE=http` |
-| Тимлид | `docs/`, ревью PR |
+| Backend #1 | solo + ranked game logic |
+| Backend #2 | миграции, WS инфра, конфиг |
+| ML | generate-контракт |
+| Тимлид | docs, ревью |

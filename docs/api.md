@@ -1,8 +1,11 @@
-# API Contract — Infinite Quiz
+# API Contract — Solo Quiz
 
 Base URL (local): `http://localhost:8000`  
 Prefix: `/api`  
 Interactive docs: `http://localhost:8000/docs`
+
+Этот файл — **solo** (`/api/quiz/*`).  
+**Ranked** (матчи + WebSocket): см. [ws.md](ws.md).
 
 Все даты — ISO 8601. Ошибки FastAPI: `{ "detail": "..." }`.
 
@@ -167,4 +170,7 @@ Interactive docs: `http://localhost:8000/docs`
 
 ```env
 VITE_API_URL=http://localhost:8000/api
+VITE_WS_BASE_URL=ws://localhost:8000
 ```
+
+Ranked-клиент подключается к `ws_url` из ответа `POST /api/ranked/matches` (см. [ws.md](ws.md)).
