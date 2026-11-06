@@ -1,6 +1,6 @@
 # Схема БД
 
-## ER-диаграмма
+## ER-диаграмма (solo)
 
 ```mermaid
 erDiagram
@@ -81,3 +81,44 @@ alembic upgrade head
 
 Локально по умолчанию: SQLite файл `quiz.db`.  
 Прод: `DATABASE_URL=postgresql+psycopg://...` в `.env`.
+
+## Ranked
+
+```mermaid
+erDiagram
+  users ||--o{ match_players : plays
+  matches ||--o{ match_players : has
+  matches ||--o{ rounds : has
+  rounds ||--o{ round_answers : receives
+  match_players ||--o{ round_answers : gives
+
+  matches {
+    string id PK
+    enum status
+    string topic
+    string invite_code
+    int round_count
+    int current_round
+    int round_seconds
+  }
+
+  match_players {
+    string id PK
+    string match_id FK
+    string user_id FK
+    int slot
+    bool is_ready
+    int score
+  }
+
+  rounds {
+    string id PK
+    string match_id FK
+    int round_index
+    enum status
+    text question_text
+    json options
+    int correct_index
+    datetime deadline_at
+  }
+```

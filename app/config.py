@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     generator_url: str | None = None
     generator_timeout_sec: int = 30
 
+    # Ranked
+    ranked_round_seconds: int = 20
+    ranked_default_rounds: int = 5
+    public_base_url: str = "http://localhost:8000"
+    public_ws_base_url: str = "ws://localhost:8000"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

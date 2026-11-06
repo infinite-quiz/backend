@@ -117,7 +117,8 @@ docs/             # архитектура, API, БД, ветки
 
 - [Обзор системы (для презентации)](docs/system-overview.md)
 - [Архитектура](docs/architecture.md)
-- [API contract](docs/api.md)
+- [API contract (solo)](docs/api.md)
+- [Ranked REST + WebSocket](docs/ws.md)
 - [Схема БД](docs/database.md)
 - [Ветки](docs/branches.md)
 
