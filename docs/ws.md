@@ -1,9 +1,17 @@
 # Ranked: REST + WebSocket
 
 Solo остаётся на `/api/quiz/*`.  
-Ranked: REST готовит матч, игра идёт по WebSocket.
+Ranked: REST готовит матч / очередь, игра идёт по WebSocket.
+
+Полный HTTP-контракт для фронта (auth, queue, leave, solo/results): [frontend-api.md](frontend-api.md).
+
+**Автоподбор:** `POST /api/ranked/queue` → `GET /api/ranked/current` → WS.  
+После банов обоих игроков матч **стартует сам** (кнопка ready не нужна).  
+`ready` оставлен только для invite-комнат.
 
 Все WS-сообщения — JSON-объект с обязательным полем `type`.
+
+На `join`/reconnect сервер шлёт персональный `match_state` (с `current_question` / `own_answer` / `last_round_result`) и при необходимости повторяет `question`, `answer_accepted`, `round_result`, `match_finished`.
 
 ## REST
 
@@ -218,10 +226,13 @@ ws://localhost:8000/ws/ranked/{match_id}?user_id={user_id}
 ```json
 {
   "type": "ban_phase",
+  "match_id": "86fdca1a-5aef-49bc-90c1-6aa5933b14f2",
   "topic_candidates": ["Космос", "История", "Наука", "Кино", "Спорт"],
   "max_bans": 1
 }
 ```
+
+Лимит банов на игрока: **1** (`RANKED_MAX_BANS`). Пустой `topics: []` = пропуск бана, но ход засчитан. Когда оба отправили ban → автостарт.
 
 ---
 
@@ -368,22 +379,31 @@ ws://localhost:8000/ws/ranked/{match_id}?user_id={user_id}
   "type": "match_finished",
   "match_id": "86fdca1a-5aef-49bc-90c1-6aa5933b14f2",
   "topic": "Космос",
+  "reason": "completed",
+  "rating_delta": 15,
   "ranking": [
     {
       "user_id": "host_smoke",
       "display_name": "Host",
-      "score": 2
+      "score": 2,
+      "rating_delta": 15,
+      "rank_points": 1015,
+      "rank": "bronze"
     },
     {
       "user_id": "guest_smoke",
       "display_name": "Guest",
-      "score": 0
+      "score": 0,
+      "rating_delta": -10,
+      "rank_points": 990,
+      "rank": "bronze"
     }
   ]
 }
 ```
 
-`ranking` отсортирован по `score` убыв.
+`reason`: `completed` | `leave` | …  
+`rating_delta` в корне — для текущего получателя события.
 
 ---
 

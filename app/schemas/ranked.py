@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -12,10 +12,12 @@ MatchStatus = Literal[
     "finished",
     "cancelled",
 ]
+QueueStatus = Literal["searching", "matched", "cancelled", "expired"]
+CurrentStatus = Literal["idle", "searching", "matched"]
 
 
 class CreateMatchRequest(BaseModel):
-    user_id: str = Field(..., min_length=1, max_length=36)
+    user_id: str | None = Field(default=None, max_length=36)
     display_name: str | None = Field(default=None, max_length=100)
     topic_candidates: list[str] = Field(
         default_factory=lambda: ["Космос", "История", "Наука", "Кино", "Спорт"],
@@ -29,9 +31,18 @@ class CreateMatchRequest(BaseModel):
 
 
 class JoinMatchRequest(BaseModel):
-    user_id: str = Field(..., min_length=1, max_length=36)
+    user_id: str | None = Field(default=None, max_length=36)
     display_name: str | None = Field(default=None, max_length=100)
     invite_code: str | None = Field(default=None, max_length=12)
+
+
+class QueueRequest(BaseModel):
+    user_id: str | None = Field(default=None, max_length=36)
+    display_name: str | None = Field(default=None, max_length=100)
+
+
+class LeaveMatchRequest(BaseModel):
+    user_id: str | None = Field(default=None, max_length=36)
 
 
 class MatchPlayerPublic(BaseModel):
@@ -43,6 +54,23 @@ class MatchPlayerPublic(BaseModel):
     is_connected: bool
     score: int
     banned_topics: list[str]
+    ban_submitted: bool = False
+
+
+class CurrentQuestionPublic(BaseModel):
+    question_id: str
+    round: int
+    round_index: int
+    text: str
+    options: list[str]
+    deadline_ts: float
+    server_now_ts: float
+    round_seconds: int
+
+
+class OwnAnswerPublic(BaseModel):
+    question_id: str
+    selected_index: int
 
 
 class MatchResponse(BaseModel):
@@ -59,3 +87,28 @@ class MatchResponse(BaseModel):
     players: list[MatchPlayerPublic]
     ws_url: str
     created_at: datetime
+    max_bans: int = 1
+    finish_reason: str | None = None
+    # reconnect snapshot (viewer-specific fields filled when known)
+    current_question: CurrentQuestionPublic | None = None
+    own_answer: OwnAnswerPublic | None = None
+    last_round_result: dict[str, Any] | None = None
+    rating_delta: int | None = None
+
+
+class QueueTicketResponse(BaseModel):
+    ticket_id: str
+    status: QueueStatus
+    revision: int = 1
+    match_id: str | None = None
+    ws_url: str | None = None
+    reason: str | None = None
+
+
+class RankedCurrentResponse(BaseModel):
+    status: CurrentStatus
+    ticket_id: str | None = None
+    match_id: str | None = None
+    ws_url: str | None = None
+    queue: QueueTicketResponse | None = None
+    match: MatchResponse | None = None

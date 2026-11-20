@@ -26,18 +26,27 @@ class Settings(BaseSettings):
     max_questions_per_request: int = 20
 
     generator_mode: str = "stub"  # stub | http
-    generator_url: str | None = None
-    generator_timeout_sec: int = 30
+    generator_url: str | None = "http://127.0.0.1:8001/generate"
+    generator_timeout_sec: int = 45
+    generator_ranked_timeout_sec: int = 40
 
-    # Ranked
     ranked_round_seconds: int = 20
     ranked_default_rounds: int = 5
+    ranked_max_bans: int = 1
+    ranked_topic_candidates: str = "Космос,История,Наука,Кино,Спорт"
     public_base_url: str = "http://localhost:8000"
     public_ws_base_url: str = "ws://localhost:8000"
+
+    session_secret: str = "dev-change-me"
+    session_ttl_sec: int = 60 * 60 * 24 * 14
 
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def ranked_topic_list(self) -> list[str]:
+        return [t.strip() for t in self.ranked_topic_candidates.split(",") if t.strip()]
 
 
 @lru_cache

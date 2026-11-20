@@ -1,6 +1,8 @@
-"""Question generator: stub now, ML HTTP later."""
+"""Question generator: stub locally, ML HTTP with stub fallback."""
 
 from __future__ import annotations
+
+import logging
 
 import httpx
 
@@ -11,6 +13,7 @@ from app.schemas.quiz import (
     GeneratedQuestion,
 )
 
+logger = logging.getLogger(__name__)
 
 STUB_BANK: dict[str, list[GeneratedQuestion]] = {
     "default": [
@@ -53,9 +56,13 @@ def _stub_generate(payload: GenerateQuestionsRequest) -> GenerateQuestionsRespon
     questions: list[GeneratedQuestion] = []
     for i in range(payload.count):
         base = bank[i % len(bank)]
+        prefix = f"[{payload.topic} / {payload.difficulty}] "
+        text = base.text if payload.mode == "ranked" else f"{prefix}{base.text}"
+        if payload.mode == "ranked" and len(text.split()) > 12:
+            text = " ".join(text.split()[:10]) + "?"
         questions.append(
             GeneratedQuestion(
-                text=f"[{payload.topic} / {payload.difficulty}] {base.text}",
+                text=text,
                 options=list(base.options),
                 correct_index=base.correct_index,
                 explanation=base.explanation,
@@ -70,6 +77,12 @@ def _stub_generate(payload: GenerateQuestionsRequest) -> GenerateQuestionsRespon
     )
 
 
+def _timeout_for(payload: GenerateQuestionsRequest, settings: Settings) -> float:
+    if payload.mode == "ranked":
+        return float(settings.generator_ranked_timeout_sec)
+    return float(settings.generator_timeout_sec)
+
+
 async def _http_generate(
     payload: GenerateQuestionsRequest,
     settings: Settings,
@@ -77,11 +90,10 @@ async def _http_generate(
     if not settings.generator_url:
         raise RuntimeError("GENERATOR_URL is not configured")
 
-    async with httpx.AsyncClient(timeout=settings.generator_timeout_sec) as client:
-        response = await client.post(
-            settings.generator_url,
-            json=payload.model_dump(),
-        )
+    body = payload.model_dump()
+    timeout = _timeout_for(payload, settings)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(settings.generator_url, json=body)
         response.raise_for_status()
         data = response.json()
 
@@ -101,6 +113,13 @@ async def generate_questions(
     settings = settings or get_settings()
     mode = settings.generator_mode.lower()
 
-    if mode == "http":
+    if mode != "http":
+        return _stub_generate(payload)
+
+    try:
         return await _http_generate(payload, settings)
-    return _stub_generate(payload)
+    except Exception as exc:  # noqa: BLE001 — матч не должен падать
+        logger.warning("ML generate failed (%s), using stub fallback", exc)
+        stub = _stub_generate(payload)
+        stub.source = "stub"
+        return stub

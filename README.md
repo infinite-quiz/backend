@@ -109,6 +109,7 @@ scripts/          # smoke-тесты
 - [Обзор (презентация)](docs/system-overview.md)
 - [Архитектура](docs/architecture.md)
 - [API solo](docs/api.md)
+- [API для фронта (auth/queue/leave)](docs/frontend-api.md)
 - [Ranked REST + WS](docs/ws.md)
 - [Схема БД](docs/database.md)
 - [Ветки](docs/branches.md)

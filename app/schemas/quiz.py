@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 
 Difficulty = Literal["easy", "medium", "hard"]
 SessionStatus = Literal["active", "finished", "abandoned"]
+GameMode = Literal["casual", "ranked"]
 
 
 class GenerateQuestionsRequest(BaseModel):
@@ -12,6 +13,7 @@ class GenerateQuestionsRequest(BaseModel):
     count: int = Field(..., ge=1, le=20, examples=[5])
     difficulty: Difficulty = Field(default="medium", examples=["medium"])
     language: str = Field(default="ru", min_length=2, max_length=5)
+    mode: GameMode = Field(default="casual", examples=["ranked"])
 
 
 class GeneratedQuestion(BaseModel):

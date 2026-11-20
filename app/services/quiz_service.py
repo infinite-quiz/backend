@@ -63,6 +63,7 @@ async def start_quiz(db: Session, payload: StartQuizRequest) -> StartQuizRespons
             count=payload.count,
             difficulty=payload.difficulty,
             language=payload.language,
+            mode="casual",
         ),
         settings=settings,
     )
